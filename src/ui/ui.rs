@@ -84,7 +84,7 @@ fn run_program(program: &str, inst_time: u64) {
 
 fn print_all_commands() {
     println!("    run -df                             - runs the default program in the 'programs' folder
-    run *enter program name*            - runs a with the same name in the 'programs' folder
+    run <enter program name>            - runs a program with the same name in the 'programs' folder
     .q                                  - quit the program
     .help                               - prints this
     configure -It *enter time in milis* - configures the delay between instructions (default is no delay)")
