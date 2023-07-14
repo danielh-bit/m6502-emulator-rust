@@ -24,6 +24,7 @@ pub struct Assembler;
 impl Assembler {
     //returns binary and starting location
     pub fn assemble(program: &str) -> (Vec<u8>, u16) {
+        //big spaghetti incoming (not recommended to read or try to understand):
         let mut program_location = "programs/".to_owned();
         program_location.push_str(program);
         program_location.push_str(".txt");
@@ -44,8 +45,7 @@ impl Assembler {
             inter_vec.push(*code);
             location += 1;
         }
-        // println!("labels: {:?}", labeled);
-        // println!("inter form {:?}", inter_vec);
+
         let mut label_found = false;
         for (i, code) in inter_vec.iter_mut().enumerate() {
             let label_call = &(*code - 1); // the call will be the label that is found -1
@@ -71,7 +71,6 @@ impl Assembler {
                         *offset += 6;
                     }
                 } else {
-                    // println!("code {}, i {}", code, i);
                     // minus 1 because it needs to jump over the last index.
                     *code -= i as i32 + 1 + offset;
                 }
@@ -81,7 +80,6 @@ impl Assembler {
             }
             label_found = false;
         }
-        // println!("inter form {:?}", inter_vec);
 
         branch = false;
         //if the label is above 0xff the value will be stored in the inter form. In the binary this will be separated into the to parts of that value.
@@ -126,7 +124,6 @@ impl Assembler {
                 binary.push(*code as u8);
             }
         }
-        // println!("{:?} len: {}", binary, binary.len());
         (binary, offset as u16)
     }
 }
