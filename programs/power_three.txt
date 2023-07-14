@@ -1,0 +1,19 @@
+.org $8000
+PRINT_PORT = $6002
+count = 3
+    LDX #count
+loop:
+    LDY #count  
+    JSR mult
+    DEX
+    BEQ end
+    JMP loop
+mult:
+    ADC #count
+    DEY
+    BEQ end_mult
+    JMP mult
+end_mult:
+    RTS
+end:
+    STA PRINT_PORT

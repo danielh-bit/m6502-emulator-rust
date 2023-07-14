@@ -1,0 +1,10 @@
+.org $8000
+arg1 = 16
+arg2 = 6
+    LDX #arg2
+loop:
+    ADC #arg1
+    DEX
+    BEQ end
+    JMP loop
+end:

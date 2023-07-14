@@ -1,0 +1,17 @@
+[package]
+name = "MOS_6502"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rusty_time = "0.12.0"
+crossterm = "0.26.1"
+substring = "1.4.5"
+colored = "2.0.0"
+
+[[bin]]
+edition = "2021"
+name = "test_with_inteface"
+path = "src/main.rs"

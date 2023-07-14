@@ -1,0 +1,23 @@
+.org $8000
+PORT_A = $6000
+PORT_B = $6001
+PRINT_PORT = $6002
+index = 10
+    LDX #index
+    DEX
+    BEQ end
+    LDA #1
+loop:
+    ADC PORT_A
+    ADC PORT_B
+    PHA
+    LDA PORT_A
+    STA PORT_B
+    PLA
+    STA PORT_A
+    STA PRINT_PORT
+    DEX
+    BEQ end
+    LDA #0
+    JMP loop
+end:

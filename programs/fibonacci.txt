@@ -1,0 +1,26 @@
+.org $8000
+PORT_A = $6000
+PORT_B = $6001
+PRINT_PORT = $6002
+    sta PRINT_PORT
+    lda #1
+loop:
+    adc PORT_A
+    adc PORT_B
+    bcs start_again
+    pha
+    lda PORT_A
+    sta PORT_B
+    pla
+    sta PORT_A
+    sta PRINT_PORT
+    lda #0
+    jmp loop
+start_again:
+    lda #0
+    sta PRINT_PORT
+    sta PORT_A
+    sta PORT_B
+    lda #1
+    jmp loop
+end:

@@ -1,0 +1,98 @@
+== multiplication ==
+.org $8000
+arg1 = 16
+arg2 = 6
+    LDX #arg2
+loop:
+    ADC #arg1
+    DEX
+    BEQ end
+    JMP loop
+end:
+
+== power of 2 ==
+.org $8000
+PRINT_PORT = $6002
+count = 15
+    LDX #count
+loop:
+    ADC #count
+    DEX
+    BEQ end
+    JMP loop
+end:
+    STA PRINT_PORT
+
+== power of 3 ==
+.org $8000
+PRINT_PORT = $6002
+count = 3
+    LDX #count
+loop:
+    LDY #count  
+    JSR mult
+    DEX
+    BEQ end
+    JMP loop
+mult:
+    ADC #count
+    DEY
+    BEQ end_mult
+    JMP mult
+end_mult:
+    RTS
+end:
+    STA PRINT_PORT
+
+== fib ==
+.org $8000
+PORT_A = $6000
+PORT_B = $6001
+PRINT_PORT = $6002
+index = 10
+    LDX #index
+    DEX
+    BEQ end
+    LDA #1
+loop:
+    ADC PORT_A
+    ADC PORT_B
+    PHA
+    LDA PORT_A
+    STA PORT_B
+    PLA
+    STA PORT_A
+    STA PRINT_PORT
+    DEX
+    BEQ end
+    LDA #0
+    JMP loop
+end:
+
+== fib infinite ==
+.org $8000
+PORT_A = $6000
+PORT_B = $6001
+PRINT_PORT = $6002
+    sta PRINT_PORT
+    lda #1
+loop:
+    adc PORT_A
+    adc PORT_B
+    bcs start_again
+    pha
+    lda PORT_A
+    sta PORT_B
+    pla
+    sta PORT_A
+    sta PRINT_PORT
+    lda #0
+    jmp loop
+start_again:
+    lda #0
+    sta PRINT_PORT
+    sta PORT_A
+    sta PORT_B
+    lda #1
+    jmp loop
+end:
