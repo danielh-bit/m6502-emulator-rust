@@ -1,6 +1,7 @@
 .org $8000
 PRINT_PORT = $6002
 count = 15
+STA $8005
     LDX #count
 loop:
     ADC #count
