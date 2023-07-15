@@ -1,5 +1,5 @@
 # m6502-emulator-rust
-A rust based m6502 emulator for following along with Ben Eater's "Buil a 65c02-based computer from scratch"
+A rust based m6502 emulator for following along with Ben Eater's "Build a 65c02-based computer from scratch"
 
 ## How to use
 You can make your own programs by updating the programs/default.txt file or making a new file in programs.
