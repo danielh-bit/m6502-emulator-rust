@@ -340,7 +340,7 @@ impl CPU {
                 self.and_status(self.a);
             }
             ASL_A => {
-                let c = self.a << 7 != 0;
+                let c = (self.a >> 7) != 0;
                 self.a <<= 1;
                 self.asl_status(self.a, c);
                 self.PC -= 1;

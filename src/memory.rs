@@ -18,10 +18,10 @@ pub struct MemoryModule {
 
 impl MemoryModule {
     fn default_eeprom(program: Vec<u8>) -> Self {
-        let data = program.clone();
+        // let data = program.clone();
         Self {
             name: "EEPROM".to_string(),
-            data,
+            data: program,
             size: 0x7fff,
             start_location: 0x8000,
             traits: vec![MemoryTrait::Readble],
@@ -81,7 +81,7 @@ impl Memory {
             {
                 //start + size is the last location.
                 if module.traits.contains(&MemoryTrait::Readble) {
-                    //if try to search an uninitialized value: 0 will be returned.
+                    //try to search an uninitialized value: 0 will be returned.
                     return *module
                         .data
                         .get((address - module.start_location) as usize)
@@ -117,7 +117,7 @@ impl Memory {
                         return;
                     }
                 } else {
-                    //if the address that is searched for is not a writable module exit.
+                    //if the address that is searched for is not a writable module: exit.
                     panic!("write address does not exist");
                 }
             }
