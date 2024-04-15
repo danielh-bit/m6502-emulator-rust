@@ -1,6 +1,7 @@
 .org $8000
 arg1 = 16
-arg2 = 6
+arg2 = 10
+PRINT_PORT = $6002
     LDX #arg2
 loop:
     ADC #arg1
@@ -8,3 +9,4 @@ loop:
     BEQ end
     JMP loop
 end:
+    STA PRINT_PORT

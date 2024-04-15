@@ -1,9 +1,8 @@
 pub enum TokenType {
-    DotCommands(DotCommands),                   // start with '.'
-    RunTypes(RunCommands),                      // run different files
-    Configurations(Conifgurations),             // configure the CPU
+    DotCommands(DotCommands),       // start with '.'
+    RunTypes(RunCommands),          // run different files
+    Configurations(Conifgurations), // configure the CPU
 }
-
 
 pub enum DotCommands {
     Quit,
@@ -12,7 +11,7 @@ pub enum DotCommands {
 
 pub enum RunCommands {
     Default,
-    UserDefind(String),
+    UserDefined(String),
 }
 
 pub enum Conifgurations {
@@ -29,27 +28,39 @@ impl Token {
     pub fn create(command: &str) -> Result<Self, &str> {
         if command.starts_with('.') {
             match Token::analayze_dot_command(command) {
-                Ok(content) => return Ok(Self{command_type: TokenType::DotCommands(content)}),
-                Err(error) => return Err(error)
+                Ok(content) => {
+                    return Ok(Self {
+                        command_type: TokenType::DotCommands(content),
+                    })
+                }
+                Err(error) => return Err(error),
             }
         }
 
         let commands = command.split(' ').collect::<Vec<&str>>();
         if commands[0] == "run" {
             if commands.len() < 2 {
-                return Err("please enter a program to run")
+                return Err("please enter a program to run");
             } else if commands.len() > 2 {
-                return Err("program name cannot contain spaces")
+                return Err("program name cannot contain spaces");
             }
             match Token::analayze_run_command(commands[1]) {
-                Ok(content) => return Ok(Self{command_type: TokenType::RunTypes(content)}),
-                Err(error) => return Err(error)
+                Ok(content) => {
+                    return Ok(Self {
+                        command_type: TokenType::RunTypes(content),
+                    })
+                }
+                Err(error) => return Err(error),
             }
         }
 
         match Token::analyze_config_command(commands) {
-            Ok(content) => return Ok(Self {command_type: TokenType::Configurations(content)}),
-            Err(error) => return Err(error)
+            Ok(content) => {
+                return Ok(Self {
+                    command_type: TokenType::Configurations(content),
+                })
+            }
+            Err(error) => return Err(error),
         }
     }
 
@@ -62,12 +73,12 @@ impl Token {
                 if i < len {
                     return Err("Syntax Error: please enter .q to exit");
                 }
-                return Ok(DotCommands::Quit)
+                return Ok(DotCommands::Quit);
             } else if token == ".help" {
                 if i < len {
                     return Err("Syntax Error: please enter .help to print all commands");
                 }
-                return Ok(DotCommands::PrintCommands)
+                return Ok(DotCommands::PrintCommands);
             }
         }
 
@@ -79,19 +90,19 @@ impl Token {
         if program == "-df" {
             return Ok(RunCommands::Default);
         }
-        Ok(RunCommands::UserDefind(program.to_owned()))
+        Ok(RunCommands::UserDefined(program.to_owned()))
     }
 
     fn analyze_config_command(config: Vec<&str>) -> Result<Conifgurations, &str> {
         if config[0] != "configure" {
-            return Err("No such command")
+            return Err("No such command");
         }
         if config[1] == "-It" {
             if config.len() != 3 {
-                return Err("Impropare use of config command")
+                return Err("Impropare use of config command");
             }
             if let Ok(time) = config[2].parse::<u64>() {
-                return Ok(Conifgurations::SetInstructionTime(time))
+                return Ok(Conifgurations::SetInstructionTime(time));
             } else {
                 return Err("Instruction time needs to be an unsigned integer");
             }

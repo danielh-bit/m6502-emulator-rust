@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::read_to_string};
+use std::{collections::HashMap, fs::read_to_string, vec};
 
 use substring::Substring;
 
@@ -28,7 +28,14 @@ impl Assembler {
         let mut program_location = "programs/".to_owned();
         program_location.push_str(program);
         program_location.push_str(".txt");
-        let (mut lex_codes, offset) = Lexer::lex(read_to_string(program_location).unwrap()).unwrap();
+        let p = match read_to_string(program_location) {
+            Ok(x) => x,
+            Err(_) => {
+                println!("Program does not exist");
+                return (Vec::new(), 0);
+            },
+        };
+        let (mut lex_codes, offset) = Lexer::lex(p).unwrap();
         //the key is the negative identefier for the label and the value is the
         let mut labeled: HashMap<i32, i32> = HashMap::new();
         //if a call to a label happend before instantiation the value of the label needs to be one less.
@@ -186,6 +193,10 @@ impl Lexer {
         }
 
         for line in input.lines() {
+            // println!("{}", line.chars().nth(0).unwrap());
+            // if line.chars().nth(0).unwrap() == '\n' || line.chars().nth(0).unwrap() == ';' {
+            //     continue;
+            // }
             //identify if label:
             if Self::labeld_line(line) {
                 let mut name = String::new();

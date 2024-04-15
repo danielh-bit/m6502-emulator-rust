@@ -23,4 +23,3 @@ start_again:
     sta PORT_B
     lda #1
     jmp loop
-end:

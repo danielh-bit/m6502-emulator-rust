@@ -10,7 +10,7 @@ use crate::{
     assembler::Assembler,
     m6502::CPU,
     memory::Memory,
-    ui::tokenizer::{DotCommands, RunCommands, Token, TokenType, Conifgurations},
+    ui::tokenizer::{Conifgurations, DotCommands, RunCommands, Token, TokenType},
 };
 
 pub fn start_inteface() {
@@ -36,7 +36,7 @@ pub fn start_inteface() {
                 },
                 TokenType::RunTypes(content) => match content {
                     RunCommands::Default => run_program("default", inst_time),
-                    RunCommands::UserDefind(program) => run_program(&program, inst_time),
+                    RunCommands::UserDefined(program) => run_program(&program, inst_time),
                 },
                 TokenType::Configurations(content) => match content {
                     Conifgurations::Default => panic!("not implemented yed"),
@@ -52,6 +52,9 @@ pub fn start_inteface() {
 fn run_program(program: &str, inst_time: u64) {
     // the start location is normally defined by FFFE and FFFF but this will work like this because i cant bother.
     let (program, start_location) = Assembler::assemble(program);
+    if program == Vec::new() {
+        return;
+    }
     let mem = Memory::default_init(program);
     let now = Instant::now();
     let mut cpu = CPU::new(mem, start_location);

@@ -2,7 +2,7 @@
 PORT_A = $6000
 PORT_B = $6001
 PRINT_PORT = $6002
-index = 14
+index = $FF
     LDX #index
     DEX
     BEQ end
