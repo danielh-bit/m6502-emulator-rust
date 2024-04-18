@@ -2,7 +2,8 @@
 PORT_A = $6000
 PORT_B = $6001
 PRINT_PORT = $6002
-    sta PRINT_PORT
+CHAR_PORT = $6003
+    sta PRINT_PORT ; a is init to zero
     lda #1
 loop:
     adc PORT_A
@@ -23,3 +24,6 @@ start_again:
     sta PORT_B
     lda #1
     jmp loop
+irq: ; saved label
+    lda CHAR_PORT
+    rts

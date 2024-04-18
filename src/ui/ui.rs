@@ -1,7 +1,5 @@
 use std::{
-    io::{self, Write},
-    thread::sleep,
-    time::{Duration, Instant},
+    cell::RefCell, io::{self, Write}, rc::Rc, thread::sleep, time::{Duration, Instant}
 };
 
 use crossterm::event::{self, Event, KeyCode};
@@ -9,7 +7,7 @@ use crossterm::event::{self, Event, KeyCode};
 use crate::{
     assembler::Assembler,
     m6502::CPU,
-    memory::Memory,
+    memory::{Memory, MemoryTrait},
     ui::tokenizer::{Conifgurations, DotCommands, RunCommands, Token, TokenType},
 };
 
@@ -55,9 +53,9 @@ fn run_program(program: &str, inst_time: u64) {
     if program == Vec::new() {
         return;
     }
-    let mem = Memory::default_init(program);
+    let mem = RefCell::new(Memory::default_init(program));
     let now = Instant::now();
-    let mut cpu = CPU::new(mem, start_location);
+    let mut cpu = CPU::new(&mem, start_location);
     println!("      Press 'esc' to stop program");
     //program loop. Run until not let some.
     'program: loop {
@@ -67,7 +65,20 @@ fn run_program(program: &str, inst_time: u64) {
                     KeyCode::Esc => {
                         break 'program;
                     }
-                    _ => {}
+                    _ => {
+                        // edit memory
+                        for module in &mut mem.borrow_mut().memory_modules {
+                            if module.traits.contains(&MemoryTrait::Keyboard) {
+                                let ascii_code = match key_event.code {
+                                    KeyCode::F(c) => c,
+                                    _ => break,
+                                };
+                                module.data[0] = ascii_code;
+                            }
+                        }
+                        // interuppt.
+                        cpu.i = true;
+                    }
                 }
             }
         }

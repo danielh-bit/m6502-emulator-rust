@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::read_to_string, vec};
+use std::{collections::HashMap, fs::read_to_string};
 
 use substring::Substring;
 
@@ -20,6 +20,16 @@ enum AddressingMode {
     IndirectY,
 }
 
+// TODO:
+// make irq a reserved label that will point to 0x7000.
+
+// THOUCHES: lexer labaling thing, assembler intermidiate and then actual program code.
+
+// - add lexer thing
+// - make an exemption in labeling algorithm (assembler)
+
+// FIX: make everything after irq be at 0x7000.
+
 pub struct Assembler;
 impl Assembler {
     //returns binary and starting location
@@ -33,7 +43,7 @@ impl Assembler {
             Err(_) => {
                 println!("Program does not exist");
                 return (Vec::new(), 0);
-            },
+            }
         };
         let (mut lex_codes, offset) = Lexer::lex(p).unwrap();
         //the key is the negative identefier for the label and the value is the
@@ -48,6 +58,9 @@ impl Assembler {
             if *code < 0 && *code % 2 == 0 {
                 labeled.insert(*code, location + offset);
                 continue;
+            } else if *code == 0x7000 {
+                // special irq memory location
+                labeled.insert(*code, *code);
             }
             inter_vec.push(*code);
             location += 1;
@@ -99,7 +112,10 @@ impl Assembler {
                     branch = true;
                 }
                 if overflow {
-                    if *code != 0 {
+                    println!("code {code}");
+                    if *code == 0x7000 {
+                        binary.push((overflow_value >> 8) as u8);
+                    } else if *code != 0 {
                         panic!("overflow assembly with the second value not zero");
                     } else {
                         binary.push((overflow_value >> 8) as u8);
@@ -186,8 +202,12 @@ impl Lexer {
                 if !fn_label_token {
                     return Err(format!("No ':' token at the end of {}", name));
                 }
-                labels.insert(name.trim().to_string(), label_counter);
-                label_counter -= 2;
+                if name == "irq" {
+                    labels.insert(name.trim().to_string(), 0x7000);
+                } else {
+                    labels.insert(name.trim().to_string(), label_counter);
+                    label_counter -= 2;
+                }
                 //program memory.
             }
         }
@@ -299,7 +319,8 @@ impl Lexer {
                     let value = args.nth(0).unwrap_or("");
                     let (addressing_type, digit) = Self::addressing_type(value, &labels).unwrap();
                     match addressing_type {
-                        AddressingMode::Implied => { //it is accumalator addressing but it doesent need a its own type because it is the same as implied
+                        AddressingMode::Implied => {
+                            //it is accumalator addressing but it doesent need a its own type because it is the same as implied
                             tokens.push(m6502::ASL_A as i32);
                         }
                         AddressingMode::Zeropage => {
@@ -597,9 +618,7 @@ impl Lexer {
                 "PHA" => {
                     tokens.push(m6502::PHA as i32);
                 }
-                "PLA" => {
-                    tokens.push(m6502::PLA as i32)
-                }
+                "PLA" => tokens.push(m6502::PLA as i32),
                 "PHP" => {
                     tokens.push(m6502::PHP as i32);
                 }

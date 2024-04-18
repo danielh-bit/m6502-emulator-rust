@@ -1,19 +1,22 @@
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone,)]
 pub enum MemoryTrait {
     Readble,
     Writable,
+    Keyboard,
 }
 
+// #[derive(Clone, Copy)]
 pub struct Memory {
     pub memory_modules: Vec<MemoryModule>,
 }
 
+// #[derive(Clone, Copy)]
 pub struct MemoryModule {
     name: String,
-    data: Vec<u8>,
+    pub data: Vec<u8>,
     size: u16,
     start_location: u16,
-    traits: Vec<MemoryTrait>,
+    pub traits: Vec<MemoryTrait>,
 }
 
 impl MemoryModule {
@@ -41,8 +44,19 @@ impl MemoryModule {
             name: "2Port Chip".to_string(),
             data: Vec::new(),
             size: 0x2,
-            start_location:0x6000, //i'm a loyal boy
+            start_location:0x6000,
             traits: vec![MemoryTrait:: Readble, MemoryTrait:: Writable],
+        }
+    }
+    fn default_keyboard_port() -> Self {
+        let mut data = Vec::new();
+        data.push(0);
+        Self {
+            name: "Keyboard UART".to_string(),
+            data,
+            size: 0x1,
+            start_location:0x6003,
+            traits: vec![MemoryTrait:: Readble, MemoryTrait:: Writable, MemoryTrait::Keyboard],
         }
     }
 
@@ -70,6 +84,7 @@ impl Memory {
                 MemoryModule::default_eeprom(program),
                 MemoryModule::default_ram(),
                 MemoryModule::default_2port(),
+                MemoryModule::default_keyboard_port(),
             ],
         }
     }
@@ -99,7 +114,10 @@ impl Memory {
             if address >= module.start_location && address <= (module.start_location + module.size)
             {
                 if address == 0x6002 {
-                    println!("{}", data);
+                    echo(data)
+                }
+                if address == 0x6003 {
+                    echo(data)
                 }
                 //start + size is the last location.
                 if module.traits.contains(&MemoryTrait::Writable) {
@@ -127,4 +145,10 @@ impl Memory {
             address
         );
     }
+}
+
+
+// UTIL FUNCTIONS
+fn echo(data: u8) {
+        println!("{}", data);
 }

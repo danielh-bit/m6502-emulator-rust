@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use std::u8;
+use std::{cell::RefCell, u8};
 
 use crate::memory::Memory;
 
@@ -172,25 +172,25 @@ pub const TXA: u8 = 0x8a;
 pub const TXS: u8 = 0x9a;
 pub const TYA: u8 = 0x98;
 
-pub struct CPU {
+pub struct CPU<'a> {
     a: u8,
     x: u8,
     y: u8,
     PC: u16, //program counter
     SP: u8,  //stack pointer
     data: u8,
-    c: bool, //carry
-    z: bool, //zero
-    i: bool, //IRQB disable
-    d: bool, //decimal
-    b: bool, //BRK command
+    c: bool,     //carry
+    z: bool,     //zero
+    pub i: bool, //IRQB disable (interrupt)
+    d: bool,     //decimal
+    b: bool,     //BRK command
     //1
     v: bool, //overflow
     n: bool, //negative
-    mem: Memory,
+    mem: &'a RefCell<Memory>,
 }
-impl CPU {
-    pub fn new(mem: Memory, start_loc: u16) -> Self {
+impl<'a> CPU<'a> {
+    pub fn new(mem: &'a RefCell<Memory>, start_loc: u16) -> Self {
         Self {
             a: 0,
             x: 0,
@@ -215,10 +215,19 @@ impl CPU {
         need to setup all the appropriate addressing modes.
     */
     pub fn execute_instruction(&mut self) -> Option<i32> {
+        if self.i {
+            println!("AHHH");
+            // execute interuppt (jsr to address 0x7000 aka - irq)
+            let mut r = 0; // just to please function
+            self.push_ret(&mut r);
+            self.PC = 0x7000;
+
+            self.i = false;
+        }
         // todo!("implement all ROL and ROR instuctions and fix");
         let mut cycles = 0;
-        //read the op code
-        self.data = self.mem.read(self.PC);
+        //read the op code read(self.PC)
+        self.data = self.mem.borrow_mut().read(self.PC);
         if self.PC == 0xffff {
             self.PC = 0;
         }
@@ -227,40 +236,43 @@ impl CPU {
         // println!("{}", self.data);
         match self.data {
             LDA_IMM => {
-                self.a = self.mem.read(self.PC);
+                self.a = self.mem.borrow_mut().read(self.PC);
                 self.load_status(self.a);
             }
             LDA_ZPM => {
-                self.a = self.mem.read(self.mem.read(self.PC) as u16); // a = mem[input] - searches for the value in the input loc.
+                self.a = self
+                    .mem
+                    .borrow_mut()
+                    .read(self.mem.borrow_mut().read(self.PC) as u16); // a = mem[input] - searches for the value in the input loc.
                 self.load_status(self.a);
             }
             LDA_ZPX => {
-                let mut loc: u16 = self.mem.read(self.PC) as u16 + self.x as u16; //maybe should be done with add op
+                let mut loc: u16 = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16; //maybe should be done with add op
                 cycles += 2;
                 loc &= 0x00ff; //only get the zero-th page
-                self.a = self.mem.read(loc);
+                self.a = self.mem.borrow_mut().read(loc);
                 self.load_status(self.a);
             }
             LDA_ABS => {
-                let mut loc: u16 = self.mem.read(self.PC) as u16;
+                let mut loc: u16 = self.mem.borrow_mut().read(self.PC) as u16;
                 self.lda_absolute(&mut loc, &mut cycles);
             }
             LDA_ABX => {
-                let mut loc: u16 = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc: u16 = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.lda_absolute(&mut loc, &mut cycles);
             }
             LDA_ABY => {
-                let mut loc: u16 = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc: u16 = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.lda_absolute(&mut loc, &mut cycles);
             }
             LDA_IDX => {
                 let loc = self.indirect_x(&mut cycles);
-                self.a = self.mem.read(loc);
+                self.a = self.mem.borrow_mut().read(loc);
                 self.load_status(self.a);
             }
             LDA_IDY => {
                 let loc = self.indirect_y(&mut cycles);
-                self.a = self.mem.read(loc);
+                self.a = self.mem.borrow_mut().read(loc);
                 self.load_status(self.a);
             }
             ADC_IMM => {
@@ -268,28 +280,28 @@ impl CPU {
                 self.adc_set_a(loc);
             }
             ADC_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
                 cycles += 1;
                 self.adc_set_a(loc);
             }
             ADC_ZPX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 cycles += 2;
                 loc &= 0x00FF;
                 self.adc_set_a(loc);
             }
             ADC_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
                 self.adc_set_a(loc);
             }
             ADC_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.absolute(&mut loc, &mut cycles);
                 self.adc_set_a(loc);
             }
             ADC_ABY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.absolute(&mut loc, &mut cycles);
                 self.adc_set_a(loc);
             }
@@ -302,41 +314,44 @@ impl CPU {
                 self.adc_set_a(loc);
             }
             AND_IMM => {
-                self.a &= self.mem.read(self.PC);
+                self.a &= self.mem.borrow_mut().read(self.PC);
                 //cycles happens at the end of function.
                 self.and_status(self.a);
             }
             AND_ZPM => {
-                self.a &= self.mem.read(self.mem.read(self.PC) as u16);
+                self.a &= self
+                    .mem
+                    .borrow_mut()
+                    .read(self.mem.borrow_mut().read(self.PC) as u16);
                 cycles += 1;
                 self.and_status(self.a);
             }
             AND_ZPX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 loc &= 0x00ff;
-                self.a &= self.mem.read(loc);
+                self.a &= self.mem.borrow_mut().read(loc);
                 self.and_status(self.a);
             }
             AND_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.and_absolute(self.a, &mut loc, &mut cycles);
             }
             AND_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.and_absolute(self.a, &mut loc, &mut cycles);
             }
             AND_ABY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.and_absolute(self.a, &mut loc, &mut cycles);
             }
             AND_IDX => {
                 let loc = self.indirect_x(&mut cycles);
-                self.a &= self.mem.read(loc);
+                self.a &= self.mem.borrow_mut().read(loc);
                 self.and_status(self.a);
             }
             AND_IDY => {
                 let loc = self.indirect_y(&mut cycles);
-                self.a &= self.mem.read(loc);
+                self.a &= self.mem.borrow_mut().read(loc);
                 self.and_status(self.a);
             }
             ASL_A => {
@@ -346,38 +361,38 @@ impl CPU {
                 self.PC -= 1;
             }
             ASL_ZPM => {
-                let loc = self.mem.read(self.PC);
-                let value = self.mem.read(loc as u16);
+                let loc = self.mem.borrow_mut().read(self.PC);
+                let value = self.mem.borrow_mut().read(loc as u16);
                 let c = (value >> 7) != 0;
-                self.mem.write(loc as u16, value << 1);
+                self.mem.borrow_mut().write(loc as u16, value << 1);
                 cycles += 2;
                 self.asl_status(value, c);
                 cycles += 1;
             }
             ASL_ZPX => {
-                let loc = self.mem.read(self.PC) as u16 + self.x as u16;
-                let value = self.mem.read(loc);
+                let loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
+                let value = self.mem.borrow_mut().read(loc);
                 let c = (value >> 7) != 0;
-                self.mem.write(loc as u16, value << 1);
+                self.mem.borrow_mut().write(loc as u16, value << 1);
                 cycles += 2;
                 self.asl_status(value, c);
                 cycles += 1;
             }
             ASL_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                let value = self.mem.read(loc);
+                let value = self.mem.borrow_mut().read(loc);
                 let c = (value >> 7) != 0;
-                self.mem.write(loc as u16, value << 1);
+                self.mem.borrow_mut().write(loc as u16, value << 1);
                 cycles += 2;
                 self.asl_status(value, c);
             }
             ASL_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.absolute(&mut loc, &mut cycles);
-                let value = self.mem.read(loc);
+                let value = self.mem.borrow_mut().read(loc);
                 let c = (value >> 7) != 0;
-                self.mem.write(loc as u16, value << 1);
+                self.mem.borrow_mut().write(loc as u16, value << 1);
                 cycles += 2;
                 self.asl_status(value, c);
             }
@@ -439,66 +454,68 @@ impl CPU {
                 self.v = false;
             }
             CPM_IMM => {
-                self.compare_status((self.a as i16 - self.mem.read(self.PC) as i16) as u16);
+                self.compare_status(
+                    (self.a as i16 - self.mem.borrow_mut().read(self.PC) as i16) as u16,
+                );
             }
             CPM_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
                 cycles += 1;
-                self.compare_status(self.a as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.a as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPM_ZPX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 cycles += 2;
                 loc &= 0x00ff;
-                self.compare_status(self.a as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.a as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPM_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.compare_status(self.a as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.a as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPM_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.compare_status(self.a as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.a as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPM_ABY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.compare_status(self.a as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.a as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPM_IDX => {
                 let loc = self.indirect_x(&mut cycles);
-                self.compare_status(self.a as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.a as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPM_IDY => {
                 let loc = self.indirect_y(&mut cycles);
-                self.compare_status(self.a as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.a as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPX_IMM => {
-                self.compare_status(self.x as u16 - self.mem.read(self.PC) as u16);
+                self.compare_status(self.x as u16 - self.mem.borrow_mut().read(self.PC) as u16);
             }
             CPX_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
-                self.compare_status(self.x as u16 - self.mem.read(loc) as u16);
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
+                self.compare_status(self.x as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPX_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.compare_status(self.x as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.x as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPY_IMM => {
-                self.compare_status(self.y as u16 - self.mem.read(self.PC) as u16);
+                self.compare_status(self.y as u16 - self.mem.borrow_mut().read(self.PC) as u16);
             }
             CPY_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
                 cycles += 1;
-                self.compare_status(self.y as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.y as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             CPY_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.compare_status(self.y as u16 - self.mem.read(loc) as u16);
+                self.compare_status(self.y as u16 - self.mem.borrow_mut().read(loc) as u16);
             }
             DEX => {
                 self.PC -= 1;
@@ -537,48 +554,48 @@ impl CPU {
                 self.dec_inc_status(self.y);
             }
             EOR_IMM => {
-                self.a ^= self.mem.read(self.PC);
+                self.a ^= self.mem.borrow_mut().read(self.PC);
                 self.eor_status();
             }
             EOR_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
                 cycles += 1;
-                self.a ^= self.mem.read(loc);
+                self.a ^= self.mem.borrow_mut().read(loc);
                 self.eor_status();
             }
             EOR_ZPX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 cycles += 2;
                 loc &= 0x00ff;
-                self.a ^= self.mem.read(loc);
+                self.a ^= self.mem.borrow_mut().read(loc);
                 self.eor_status();
             }
             EOR_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.a ^= self.mem.read(loc);
+                self.a ^= self.mem.borrow_mut().read(loc);
                 self.eor_status();
             }
             EOR_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.a ^= self.mem.read(loc);
+                self.a ^= self.mem.borrow_mut().read(loc);
                 self.eor_status();
             }
             EOR_ABY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.a ^= self.mem.read(loc);
+                self.a ^= self.mem.borrow_mut().read(loc);
                 self.eor_status();
             }
             EOR_IDX => {
                 let loc = self.indirect_x(&mut cycles);
-                self.a ^= self.mem.read(loc);
+                self.a ^= self.mem.borrow_mut().read(loc);
                 self.eor_status();
             }
             EOR_IDY => {
                 let loc = self.indirect_y(&mut cycles);
-                self.a ^= self.mem.read(loc);
+                self.a ^= self.mem.borrow_mut().read(loc);
                 self.eor_status();
             }
             JMP_ABS => {
@@ -605,61 +622,61 @@ impl CPU {
                 return Some(cycles);
             }
             LDX_IMM => {
-                self.x = self.mem.read(self.PC);
+                self.x = self.mem.borrow_mut().read(self.PC);
                 self.load_status(self.x);
             }
             LDX_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
                 cycles += 1;
-                self.x = self.mem.read(loc);
+                self.x = self.mem.borrow_mut().read(loc);
                 self.load_status(self.x);
             }
             LDX_ZPY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 cycles += 2;
                 loc &= 0x00ff;
-                self.x = self.mem.read(loc);
+                self.x = self.mem.borrow_mut().read(loc);
                 self.load_status(self.x);
             }
             LDX_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.x = self.mem.read(loc);
+                self.x = self.mem.borrow_mut().read(loc);
                 self.load_status(self.x);
             }
             LDX_ABY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.x = self.mem.read(loc);
+                self.x = self.mem.borrow_mut().read(loc);
                 self.load_status(self.x);
             }
             LDY_IMM => {
-                self.y = self.mem.read(self.PC);
+                self.y = self.mem.borrow_mut().read(self.PC);
                 self.load_status(self.y);
             }
             LDY_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
                 cycles += 1;
-                self.y = self.mem.read(loc);
+                self.y = self.mem.borrow_mut().read(loc);
                 self.load_status(self.y);
             }
             LDY_ZPX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 cycles += 2;
                 loc &= 0x00ff;
-                self.y = self.mem.read(loc);
+                self.y = self.mem.borrow_mut().read(loc);
                 self.load_status(self.y);
             }
             LDY_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.y = self.mem.read(loc);
+                self.y = self.mem.borrow_mut().read(loc);
                 self.load_status(self.y);
             }
             LDY_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.y = self.mem.read(loc);
+                self.y = self.mem.borrow_mut().read(loc);
                 self.load_status(self.y);
             }
             LSR => {
@@ -672,48 +689,48 @@ impl CPU {
                 self.PC -= 1;
             }
             ORA_IMM => {
-                self.a |= self.mem.read(self.PC);
+                self.a |= self.mem.borrow_mut().read(self.PC);
                 self.ora_status();
             }
             ORA_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
                 cycles += 1;
-                self.a |= self.mem.read(loc);
+                self.a |= self.mem.borrow_mut().read(loc);
                 self.ora_status();
             }
             ORA_ZPX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 cycles += 2;
                 loc &= 0x00ff;
-                self.a |= self.mem.read(loc);
+                self.a |= self.mem.borrow_mut().read(loc);
                 self.ora_status();
             }
             ORA_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.a |= self.mem.read(loc);
+                self.a |= self.mem.borrow_mut().read(loc);
                 self.ora_status();
             }
             ORA_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.a |= self.mem.read(loc);
+                self.a |= self.mem.borrow_mut().read(loc);
                 self.ora_status();
             }
             ORA_ABY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.a |= self.mem.read(loc);
+                self.a |= self.mem.borrow_mut().read(loc);
                 self.ora_status();
             }
             ORA_IDX => {
                 let loc = self.indirect_x(&mut cycles);
-                self.a |= self.mem.read(loc);
+                self.a |= self.mem.borrow_mut().read(loc);
                 self.ora_status();
             }
             ORA_IDY => {
                 let loc = self.indirect_y(&mut cycles);
-                self.a |= self.mem.read(loc);
+                self.a |= self.mem.borrow_mut().read(loc);
                 self.ora_status();
             }
             PHA => {
@@ -762,101 +779,101 @@ impl CPU {
                 return Some(cycles);
             }
             STA_ZPM => {
-                self.mem.write(self.PC, self.a);
+                self.mem.borrow_mut().write(self.PC, self.a);
                 cycles += 1;
             }
             STA_ZPX => {
-                let loc = (self.mem.read(self.PC) as u16 + self.x as u16) & 0x00ff;
+                let loc = (self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16) & 0x00ff;
                 cycles += 1;
-                self.mem.write(loc, self.a);
+                self.mem.borrow_mut().write(loc, self.a);
                 cycles += 1;
             }
             STA_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.mem.write(loc, self.a);
+                self.mem.borrow_mut().write(loc, self.a);
                 cycles += 1;
             }
             STA_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.mem.write(loc, self.a);
+                self.mem.borrow_mut().write(loc, self.a);
                 cycles += 1;
             }
             STA_ABY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.mem.write(loc, self.a);
+                self.mem.borrow_mut().write(loc, self.a);
                 cycles += 1;
             }
             STA_IDX => {
                 let loc = self.indirect_x(&mut cycles);
-                self.mem.write(loc, self.a);
+                self.mem.borrow_mut().write(loc, self.a);
                 cycles += 1;
             }
             STA_IDY => {
                 let loc = self.indirect_y(&mut cycles);
-                self.mem.write(loc, self.a);
+                self.mem.borrow_mut().write(loc, self.a);
                 cycles += 1;
             }
             STX_ZPM => {
-                self.mem.write(self.PC, self.x);
+                self.mem.borrow_mut().write(self.PC, self.x);
                 cycles += 1;
             }
             STX_ZPY => {
-                let loc = (self.mem.read(self.PC) as u16 + self.y as u16) & 0x00ff;
+                let loc = (self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16) & 0x00ff;
                 cycles += 1;
-                self.mem.write(loc, self.x);
+                self.mem.borrow_mut().write(loc, self.x);
                 cycles += 1;
             }
             STX_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.mem.write(loc, self.x);
+                self.mem.borrow_mut().write(loc, self.x);
                 cycles += 1;
             }
             STY_ZPM => {
-                self.mem.write(self.PC, self.y);
+                self.mem.borrow_mut().write(self.PC, self.y);
                 cycles += 1;
             }
             STY_ZPX => {
-                let loc = (self.mem.read(self.PC) as u16 + self.x as u16) & 0x00ff;
+                let loc = (self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16) & 0x00ff;
                 cycles += 1;
-                self.mem.write(loc, self.y);
+                self.mem.borrow_mut().write(loc, self.y);
                 cycles += 1;
             }
             STY_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
-                self.mem.write(loc, self.y);
+                self.mem.borrow_mut().write(loc, self.y);
                 cycles += 1;
             }
             SBC_IMM => {
                 self.sbc_set_a(self.PC);
             }
             SBC_ZPM => {
-                let loc = self.mem.read(self.PC) as u16;
+                let loc = self.mem.borrow_mut().read(self.PC) as u16;
                 cycles += 1;
                 self.sbc_set_a(loc);
             }
             SBC_ZPX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 cycles += 2;
                 loc &= 0x00ff;
                 self.sbc_set_a(loc);
             }
             SBC_ABS => {
-                let mut loc = self.mem.read(self.PC) as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
                 self.absolute(&mut loc, &mut cycles);
                 self.sbc_set_a(loc);
             }
             SBC_ABX => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.x as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
                 self.absolute(&mut loc, &mut cycles);
                 self.sbc_set_a(loc);
             }
             SBC_ABY => {
-                let mut loc = self.mem.read(self.PC) as u16 + self.y as u16;
+                let mut loc = self.mem.borrow_mut().read(self.PC) as u16 + self.y as u16;
                 self.absolute(&mut loc, &mut cycles);
                 self.sbc_set_a(loc);
             }
@@ -928,7 +945,7 @@ impl CPU {
         *cycles += 1;
         //for crossing page bounderies.
         self.PC += 1;
-        let part1 = self.mem.read(self.PC) as u16;
+        let part1 = self.mem.borrow_mut().read(self.PC) as u16;
         if *loc > 255 {
             *cycles += 1;
         }
@@ -937,9 +954,10 @@ impl CPU {
     }
     //this returns the loc instead of mutating because the input is constant. So there is no need for it.
     fn indirect(&mut self, cycles: &mut i32) -> u16 {
-        let mut loc: u16 = self.mem.read(self.PC) as u16;
+        let mut loc: u16 = self.mem.borrow_mut().read(self.PC) as u16;
         self.absolute(&mut loc, cycles);
-        loc = (self.mem.read(loc) as u16) | (self.mem.read(loc + 1) as u16) << 8;
+        loc = (self.mem.borrow_mut().read(loc) as u16)
+            | (self.mem.borrow_mut().read(loc + 1) as u16) << 8;
         *cycles += 1;
         //when crossing page bounderies jmp doesnt add cycles because of magic.
         if *cycles < 5 {
@@ -948,35 +966,36 @@ impl CPU {
         loc
     }
     fn indirect_x(&mut self, cycles: &mut i32) -> u16 {
-        let mut loc: u16 = self.mem.read(self.PC) as u16 + self.x as u16;
+        let mut loc: u16 = self.mem.borrow_mut().read(self.PC) as u16 + self.x as u16;
         *cycles += 2;
         loc &= 0x00ff;
         //lookup with next mem slot and add to find mem loc.
-        loc = (self.mem.read(loc) as u16) | (self.mem.read(loc + 1) as u16) << 8;
+        loc = (self.mem.borrow_mut().read(loc) as u16)
+            | (self.mem.borrow_mut().read(loc + 1) as u16) << 8;
         *cycles += 2;
         loc
     }
     fn indirect_y(&mut self, cycles: &mut i32) -> u16 {
-        let mut loc: u16 = self.mem.read(self.PC) as u16;
+        let mut loc: u16 = self.mem.borrow_mut().read(self.PC) as u16;
         *cycles += 1;
         //lookup with next mem slot and add to find mem loc. But with post addition of y.
-        let part1 = (self.mem.read(loc) as u16) + self.y as u16;
+        let part1 = (self.mem.borrow_mut().read(loc) as u16) + self.y as u16;
         *cycles += 2;
         if part1 > 255 {
             *cycles += 1;
         }
-        loc = part1 | (self.mem.read(loc + 1) as u16) << 8;
+        loc = part1 | (self.mem.borrow_mut().read(loc + 1) as u16) << 8;
         loc
     }
     fn relative(&mut self, cycles: &mut i32, condition: bool) {
         if condition {
             // println!("PC start {}", self.PC);
-            let branch_offset = self.mem.read(self.PC);
+            let branch_offset = self.mem.borrow_mut().read(self.PC);
             //if greater than 127 it is negative.
             if branch_offset > 127 {
                 self.PC -= (255 - branch_offset) as u16;
             } else {
-                self.PC += self.mem.read(self.PC) as u16 + 1; //+1 because the offset is after the 2 byte instruction but PC += 1 in start of instuction
+                self.PC += self.mem.borrow_mut().read(self.PC) as u16 + 1; //+1 because the offset is after the 2 byte instruction but PC += 1 in start of instuction
             }
             *cycles += 2;
             //so it wont add another.
@@ -993,15 +1012,15 @@ impl CPU {
         } else {
             self.SP -= 1;
         }
-        let out = self.mem.read(self.SP as u16 + 0x100);
+        let out = self.mem.borrow_mut().read(self.SP as u16 + 0x100);
         *cycles += 1;
         //pop
-        self.mem.write(self.SP as u16 + 0x100, 0);
+        self.mem.borrow_mut().write(self.SP as u16 + 0x100, 0);
         *cycles += 1;
         out
     }
     fn stack_push(&mut self, data: u8, cycles: &mut i32) {
-        self.mem.write(self.SP as u16 + 0x100, data);
+        self.mem.borrow_mut().write(self.SP as u16 + 0x100, data);
         if self.SP == 0xff {
             self.SP = 0;
         } else {
@@ -1091,32 +1110,32 @@ impl CPU {
     //specific operation macros.
     fn lda_absolute(&mut self, loc: &mut u16, cycles: &mut i32) {
         self.absolute(loc, cycles);
-        self.a = self.mem.read(*loc);
+        self.a = self.mem.borrow_mut().read(*loc);
         self.load_status(self.a);
     }
     fn adc_set_a(&mut self, loc: u16) {
         //how the fuck does this take only one cycle!!! WTF
-        let res = self.a as u16 + self.mem.read(loc) as u16;
+        let res = self.a as u16 + self.mem.borrow_mut().read(loc) as u16;
         let c = res > 255;
         self.a = (res & 0x00ff) as u8;
         self.adc_status(self.a, c);
     }
     fn sbc_set_a(&mut self, loc: u16) {
-        let res = self.a as i16 - self.mem.read(loc) as i16 - !self.c as i16;
-        let c = res >= 0; 
+        let res = self.a as i16 - self.mem.borrow_mut().read(loc) as i16 - !self.c as i16;
+        let c = res >= 0;
         let v = res < 0; // !carrry
         self.a = (res & 0xff) as u8;
         self.subtract_status(c, v);
     }
     fn and_absolute(&mut self, reg: u8, loc: &mut u16, cycles: &mut i32) {
         self.absolute(loc, cycles);
-        self.a &= self.mem.read(*loc);
+        self.a &= self.mem.borrow_mut().read(*loc);
         self.and_status(reg);
     }
     fn jump_absolute(&mut self, cycles: &mut i32) {
-        let mut loc = self.mem.read(self.PC) as u16;
+        let mut loc = self.mem.borrow_mut().read(self.PC) as u16;
         self.PC += 1;
-        loc |= (self.mem.read(self.PC) as u16) << 8;
+        loc |= (self.mem.borrow_mut().read(self.PC) as u16) << 8;
         *cycles += 2;
         self.PC = loc;
     }
