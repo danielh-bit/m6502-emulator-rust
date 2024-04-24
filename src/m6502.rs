@@ -178,6 +178,7 @@ pub struct CPU<'a> {
     y: u8,
     PC: u16, //program counter
     SP: u8,  //stack pointer
+    irq: u16,
     data: u8,
     c: bool,     //carry
     z: bool,     //zero
@@ -190,12 +191,13 @@ pub struct CPU<'a> {
     mem: &'a RefCell<Memory>,
 }
 impl<'a> CPU<'a> {
-    pub fn new(mem: &'a RefCell<Memory>, start_loc: u16) -> Self {
+    pub fn new(mem: &'a RefCell<Memory>, start_loc: u16, irq_loc: u16) -> Self {
         Self {
             a: 0,
             x: 0,
             y: 0,
             PC: start_loc,
+            irq: irq_loc,
             SP: 0,
             data: 0,
             c: false,
@@ -216,15 +218,15 @@ impl<'a> CPU<'a> {
     */
     pub fn execute_instruction(&mut self) -> Option<i32> {
         if self.i {
-            println!("AHHH");
-            // execute interuppt (jsr to address 0x7000 aka - irq)
             let mut r = 0; // just to please function
             self.push_ret(&mut r);
-            self.PC = 0x7000;
+            println!("pc = {}, data = {}", self.PC - 0x8000, self.mem.borrow_mut().read(self.PC));
+
+            self.PC = self.irq;
 
             self.i = false;
         }
-        // todo!("implement all ROL and ROR instuctions and fix");
+
         let mut cycles = 0;
         //read the op code read(self.PC)
         self.data = self.mem.borrow_mut().read(self.PC);
@@ -618,6 +620,7 @@ impl<'a> CPU<'a> {
                 let mut ret_address = self.stack_pop(&mut cycles) as u16;
                 ret_address |= (self.stack_pop(&mut cycles) as u16) << 8;
                 self.PC = ret_address;
+                println!("ret add {}", ret_address - 0x8000);
                 cycles += 1;
                 return Some(cycles);
             }

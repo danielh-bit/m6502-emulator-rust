@@ -33,7 +33,7 @@ enum AddressingMode {
 pub struct Assembler;
 impl Assembler {
     //returns binary and starting location
-    pub fn assemble(program: &str) -> (Vec<u8>, u16) {
+    pub fn assemble(program: &str) -> (Vec<u8>, u16, u16) {
         //big spaghetti incoming (not recommended to read or try to understand):
         let mut program_location = "programs/".to_owned();
         program_location.push_str(program);
@@ -42,13 +42,16 @@ impl Assembler {
             Ok(x) => x,
             Err(_) => {
                 println!("Program does not exist");
-                return (Vec::new(), 0);
+                return (Vec::new(), 0, 0);
             }
         };
-        let (mut lex_codes, offset) = Lexer::lex(p).unwrap();
+        let (mut lex_codes, offset, irq_offset) = Lexer::lex(p).unwrap();
+        let mut irq_location = 0;
         //the key is the negative identefier for the label and the value is the
         let mut labeled: HashMap<i32, i32> = HashMap::new();
         //if a call to a label happend before instantiation the value of the label needs to be one less.
+
+        // println!("lex codes {:?}", lex_codes);
 
         let mut inter_vec = Vec::new();
         let mut location = 0;
@@ -58,14 +61,25 @@ impl Assembler {
             if *code < 0 && *code % 2 == 0 {
                 labeled.insert(*code, location + offset);
                 continue;
-            } else if *code == 0x7000 {
-                // special irq memory location
-                labeled.insert(*code, *code);
             }
             inter_vec.push(*code);
             location += 1;
         }
+        // println!("intervec before {:?}", inter_vec);
 
+        // if it exists
+        if irq_offset != 0 {
+            // get last lable and location of it
+            let mut last_code = 0;
+            for label in &labeled {
+                if *label.0 < last_code {
+                    last_code = *label.0;
+                }
+            }
+            irq_location = *labeled.get_key_value(&last_code).unwrap().1;
+        }
+
+        // replace lables with mem locations.
         let mut label_found = false;
         for (i, code) in inter_vec.iter_mut().enumerate() {
             let label_call = &(*code - 1); // the call will be the label that is found -1
@@ -100,6 +114,7 @@ impl Assembler {
             }
             label_found = false;
         }
+        // println!("intervec after {:?}", inter_vec);
 
         branch = false;
         //if the label is above 0xff the value will be stored in the inter form. In the binary this will be separated into the to parts of that value.
@@ -112,10 +127,7 @@ impl Assembler {
                     branch = true;
                 }
                 if overflow {
-                    println!("code {code}");
-                    if *code == 0x7000 {
-                        binary.push((overflow_value >> 8) as u8);
-                    } else if *code != 0 {
+                    if *code != 0 {
                         panic!("overflow assembly with the second value not zero");
                     } else {
                         binary.push((overflow_value >> 8) as u8);
@@ -146,8 +158,9 @@ impl Assembler {
                 //this is to send the code even if its negative (for Branch back).
                 binary.push(*code as u8);
             }
-        }
-        (binary, offset as u16)
+        };
+        println!("final binary {:?}", binary); // should be 32816
+        (binary, offset as u16, irq_location as u16)
     }
 }
 
@@ -155,11 +168,12 @@ pub struct Lexer;
 impl Lexer {
     //returns the lex codes and the offset (origin of the program) if error it will return the token that
     //caused the error (with an error message).
-    pub fn lex(input: String) -> Result<(Vec<i32>, i32), String> {
+    pub fn lex(input: String) -> Result<(Vec<i32>, i32, i32), String> {
         let mut tokens = Vec::new();
         let mut labels: HashMap<String, i32> = HashMap::new();
         let mut label_counter = -1;
         let mut start_offset = 0;
+        let mut irq_location = 0;
 
         for line in input.lines() {
             //identify if label:
@@ -170,6 +184,9 @@ impl Lexer {
                 if line.contains(".org") {
                     let value = line.substring(4, line.len()).trim();
                     start_offset = Lexer::value_reader(value, false, &labels);
+                } else if line.contains(".irq") {
+                    let value = line.substring(4, line.len()).trim();
+                    irq_location = Lexer::value_reader(value, false, &labels);
                 }
             } else if line.contains("=") {
                 let mut name = String::new();
@@ -202,13 +219,14 @@ impl Lexer {
                 if !fn_label_token {
                     return Err(format!("No ':' token at the end of {}", name));
                 }
+
                 if name == "irq" {
-                    labels.insert(name.trim().to_string(), 0x7000);
-                } else {
-                    labels.insert(name.trim().to_string(), label_counter);
-                    label_counter -= 2;
+                    // this is just to notify that it exist, later it will implement the actual location.
+                    irq_location = 1;
                 }
-                //program memory.
+
+                labels.insert(name.trim().to_string(), label_counter);
+                label_counter -= 2;
             }
         }
 
@@ -771,7 +789,7 @@ impl Lexer {
         }
         // println!("{:?}", tokens);
         // println!("{:?}", labels);
-        Ok((tokens, start_offset))
+        Ok((tokens, start_offset, irq_location))
     }
     fn labeld_line(line: &str) -> bool {
         if line.starts_with(" ") || line.starts_with("\t") {

@@ -12,10 +12,11 @@ use crate::{
 };
 
 pub fn start_inteface() {
+    let mut inst_time = 10;
+    run_program("echo", inst_time);
     print_logo();
 
     sleep(Duration::from_secs(2));
-    let mut inst_time = 0;
 
     loop {
         let mut input_line = String::new();
@@ -49,13 +50,13 @@ pub fn start_inteface() {
 
 fn run_program(program: &str, inst_time: u64) {
     // the start location is normally defined by FFFE and FFFF but this will work like this because i cant bother.
-    let (program, start_location) = Assembler::assemble(program);
+    let (program, start_location, irq_location) = Assembler::assemble(program);
     if program == Vec::new() {
         return;
     }
     let mem = RefCell::new(Memory::default_init(program));
     let now = Instant::now();
-    let mut cpu = CPU::new(&mem, start_location);
+    let mut cpu = CPU::new(&mem, start_location, irq_location);
     println!("      Press 'esc' to stop program");
     //program loop. Run until not let some.
     'program: loop {
@@ -70,14 +71,15 @@ fn run_program(program: &str, inst_time: u64) {
                         for module in &mut mem.borrow_mut().memory_modules {
                             if module.traits.contains(&MemoryTrait::Keyboard) {
                                 let ascii_code = match key_event.code {
-                                    KeyCode::F(c) => c,
+                                    KeyCode::Char(c) => c,
                                     _ => break,
                                 };
-                                module.data[0] = ascii_code;
+                                // println!("char is {ascii_code}");
+                                module.data[0] = ascii_code as u8;
+                                cpu.i = true;
                             }
                         }
                         // interuppt.
-                        cpu.i = true;
                     }
                 }
             }

@@ -1,4 +1,4 @@
-#[derive(PartialEq, Clone,)]
+#[derive(PartialEq, Clone)]
 pub enum MemoryTrait {
     Readble,
     Writable,
@@ -44,8 +44,8 @@ impl MemoryModule {
             name: "2Port Chip".to_string(),
             data: Vec::new(),
             size: 0x2,
-            start_location:0x6000,
-            traits: vec![MemoryTrait:: Readble, MemoryTrait:: Writable],
+            start_location: 0x6000,
+            traits: vec![MemoryTrait::Readble, MemoryTrait::Writable],
         }
     }
     fn default_keyboard_port() -> Self {
@@ -55,8 +55,12 @@ impl MemoryModule {
             name: "Keyboard UART".to_string(),
             data,
             size: 0x1,
-            start_location:0x6003,
-            traits: vec![MemoryTrait:: Readble, MemoryTrait:: Writable, MemoryTrait::Keyboard],
+            start_location: 0x6003,
+            traits: vec![
+                MemoryTrait::Readble,
+                MemoryTrait::Writable,
+                MemoryTrait::Keyboard,
+            ],
         }
     }
 
@@ -96,6 +100,9 @@ impl Memory {
             {
                 //start + size is the last location.
                 if module.traits.contains(&MemoryTrait::Readble) {
+                    if address == 0x6003 {
+                        echo(module.data[(address - module.start_location) as usize])
+                    }
                     //try to search an uninitialized value: 0 will be returned.
                     return *module
                         .data
@@ -114,9 +121,6 @@ impl Memory {
             if address >= module.start_location && address <= (module.start_location + module.size)
             {
                 if address == 0x6002 {
-                    echo(data)
-                }
-                if address == 0x6003 {
                     echo(data)
                 }
                 //start + size is the last location.
@@ -147,8 +151,7 @@ impl Memory {
     }
 }
 
-
 // UTIL FUNCTIONS
 fn echo(data: u8) {
-        println!("{}", data);
+    println!("{}", data as char);
 }

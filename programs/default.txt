@@ -1,6 +1,7 @@
 .org $8000
 PRINT_PORT = $6002
 count = 10
+    jsr irq
     LDX #count
 loop:
     ADC #count
@@ -9,3 +10,7 @@ loop:
     JMP loop
 end:
     STA PRINT_PORT
+irq:
+    lda #69
+    sta PRINT_PORT
+    rts

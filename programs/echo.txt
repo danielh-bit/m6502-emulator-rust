@@ -1,0 +1,7 @@
+.org $8000
+CHAR_PORT = $6003
+loop:
+    jmp loop
+irq:
+    lda CHAR_PORT
+    rts

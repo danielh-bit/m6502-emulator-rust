@@ -24,6 +24,6 @@ start_again:
     sta PORT_B
     lda #1
     jmp loop
-irq: ; saved label
+irq:
     lda CHAR_PORT
     rts
